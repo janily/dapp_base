@@ -59,9 +59,9 @@ export function getBrowserProvider() {
   return new BrowserProvider(window.ethereum);
 }
 
-export function getReadErc20Contract() {
-  if (!appConfig.erc20Address) {
-    throw new Error('请先配置 VITE_ERC20_ADDRESS。');
+export function getReadErc20Contract(erc20Address = appConfig.erc20Address) {
+  if (!erc20Address) {
+    throw new Error('请先填写 ERC-20 合约地址。');
   }
-  return new Contract(appConfig.erc20Address, erc20Abi, getReadProvider());
+  return new Contract(erc20Address, erc20Abi, getReadProvider());
 }

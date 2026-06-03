@@ -63,3 +63,5 @@ label { display: grid; gap: 0.35rem; font-size: 0.9rem; color: #40506b; }
 .error { color: #c02626; }
 .event-list { max-height: 260px; overflow: auto; padding-left: 1rem; }
 .event-list li { margin: 0 0 0.6rem; }
+
+.erc20-config { margin-bottom: 18px; }
