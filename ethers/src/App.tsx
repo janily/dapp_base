@@ -31,7 +31,7 @@ function WalletAndEthBalance() {
     const signer = await provider.getSigner();
     const address = await signer.getAddress();
     setWallet(address);
-    setQueryAddress((current) => current || address);
+    setQueryAddress((current: any) => current || address);
   }
 
   async function queryBalance() {
@@ -157,6 +157,7 @@ export default function App() {
   const envRows = useMemo(() => [
     ['Chain ID', String(appConfig.chainId)],
     ['RPC URL', appConfig.rpcUrl],
+    ['Read RPC', appConfig.readRpcUrl],
     ['ERC-20', appConfig.erc20Address || '未配置'],
   ], []);
 

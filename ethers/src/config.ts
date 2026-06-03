@@ -1,9 +1,12 @@
 import { BrowserProvider, Contract, JsonRpcProvider } from 'ethers';
 
+const defaultSepoliaRpcUrl = 'https://ethereum-sepolia-rpc.publicnode.com';
+
 export const appConfig = {
   chainId: Number(import.meta.env.VITE_CHAIN_ID ?? 11155111),
   chainName: import.meta.env.VITE_CHAIN_NAME ?? 'Sepolia',
-  rpcUrl: import.meta.env.VITE_RPC_URL ?? 'https://rpc.sepolia.org',
+  rpcUrl: import.meta.env.VITE_RPC_URL ?? defaultSepoliaRpcUrl,
+  readRpcUrl: import.meta.env.VITE_READ_RPC_URL ?? '/rpc/sepolia',
   erc20Address: import.meta.env.VITE_ERC20_ADDRESS ?? '',
   defaultQueryAddress: import.meta.env.VITE_DEFAULT_QUERY_ADDRESS ?? '',
   defaultRecipient: import.meta.env.VITE_DEFAULT_RECIPIENT ?? '',
@@ -38,7 +41,10 @@ export const erc20Abi = [
 ];
 
 export function getReadProvider() {
-  return new JsonRpcProvider(appConfig.rpcUrl, appConfig.chainId);
+  const rpcUrl = appConfig.readRpcUrl.startsWith('/')
+    ? new URL(appConfig.readRpcUrl, window.location.origin).toString()
+    : appConfig.readRpcUrl;
+  return new JsonRpcProvider(rpcUrl, appConfig.chainId);
 }
 
 export function getBrowserProvider() {
