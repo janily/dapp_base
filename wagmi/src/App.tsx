@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
-import { formatEther, formatUnits, isAddress, parseEther, parseUnits, type Address } from 'viem';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { formatUnits, isAddress, parseEther, parseUnits, type Address } from 'viem';
 import {
   useAccount,
   useBalance,
@@ -112,21 +112,44 @@ function Erc20Balance({ erc20Address }: { erc20Address: Address | '' }) {
 
 function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
   const [events, setEvents] = useState<string[]>([]);
+  const [error, setError] = useState('');
+  const canWatch = isAddress(erc20Address);
+
+  useEffect(() => {
+    setEvents([]);
+    setError('');
+  }, [erc20Address]);
+
+  const handleLogs = useCallback((logs: readonly { args: { from?: Address; to?: Address; value?: bigint } }[]) => {
+    setEvents((current) => [
+      ...logs.map((log) => `${log.args.from} -> ${log.args.to}: ${formatUnits(log.args.value ?? 0n, 18)}`),
+      ...current,
+    ].slice(0, 20));
+  }, []);
+
+  const handleError = useCallback((err: Error) => {
+    setError(err.message);
+  }, []);
+
   useWatchContractEvent({
-    address: isAddress(erc20Address) ? erc20Address : undefined,
+    address: canWatch ? erc20Address : undefined,
     abi: erc20Abi,
     eventName: 'Transfer',
-    onLogs(logs) {
-      setEvents((current) => [...logs.map((log) => `${log.args.from} -> ${log.args.to}: ${formatEther(log.args.value ?? 0n)}`), ...current].slice(0, 20));
-    },
-    enabled: isAddress(erc20Address),
+    chainId: appConfig.chainId,
+    onLogs: handleLogs,
+    onError: handleError,
+    enabled: canWatch,
+    poll: true,
+    pollingInterval: 2_000,
   });
 
   return <section className="card stack">
     <h2>4. 监听 ERC-20 Transfer 事件</h2>
     <p className="muted">页面打开后会持续监听配置合约的新 Transfer 事件。</p>
+    {canWatch && <p className="status">监听中：{erc20Address}</p>}
     <ol className="event-list">{events.map((event, index) => <li key={`${event}-${index}`}>{event}</li>)}</ol>
     {!events.length && <p className="muted">暂无事件</p>}
+    {error && <p className="error">监听失败：{error}</p>}
   </section>;
 }
 
