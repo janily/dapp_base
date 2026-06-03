@@ -79,35 +79,37 @@ function SendEth() {
   </section>;
 }
 
-function Erc20Balance() {
+function Erc20Balance({ erc20Address }: { erc20Address: Address | '' }) {
   const [account, setAccount] = useState<Address | ''>(appConfig.defaultQueryAddress);
   const [balance, setBalance] = useState('');
   const { status, error, run } = useStatus();
 
   async function readBalance() {
-    const value = await publicClient.readContract({ address: appConfig.erc20Address as Address, abi: erc20Abi, functionName: 'balanceOf', args: [account as Address] });
+    const value = await publicClient.readContract({ address: erc20Address as Address, abi: erc20Abi, functionName: 'balanceOf', args: [account as Address] });
     setBalance(formatUnits(value, 18));
   }
 
   return <section className="card stack">
     <h2>3. 调用 ERC-20 balanceOf</h2>
-    <p className="code">合约：{appConfig.erc20Address || '请配置 VITE_ERC20_ADDRESS'}</p>
+    <p className="code">合约：{erc20Address || '请在页面上填写 ERC-20 合约地址'}</p>
     <label>账户地址<input value={account} onChange={(e) => setAccount(e.target.value as Address)} placeholder="0x..." /></label>
-    <button disabled={!isAddress(appConfig.erc20Address) || !isAddress(account)} onClick={() => run(readBalance, '读取 Token 余额中...')}>读取 Token 余额</button>
+    <button disabled={!isAddress(erc20Address) || !isAddress(account)} onClick={() => run(readBalance, '读取 Token 余额中...')}>读取 Token 余额</button>
     {balance && <p className="status">余额：{balance} Token（按 18 位小数显示）</p>}
     {status && <p className="muted">{status}</p>}
     {error && <p className="error">{error}</p>}
   </section>;
 }
 
-function TransferEvents() {
+function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
   const [events, setEvents] = useState<string[]>([]);
   const [error, setError] = useState('');
 
   useEffect(() => {
-    if (!isAddress(appConfig.erc20Address)) return;
+    setEvents([]);
+    setError('');
+    if (!isAddress(erc20Address)) return;
     const unwatch = publicClient.watchContractEvent({
-      address: appConfig.erc20Address as Address,
+      address: erc20Address as Address,
       abi: erc20Abi,
       eventName: 'Transfer',
       onLogs(logs) {
@@ -118,7 +120,7 @@ function TransferEvents() {
       },
     });
     return unwatch;
-  }, []);
+  }, [erc20Address]);
 
   return <section className="card stack">
     <h2>4. 监听 ERC-20 Transfer 事件</h2>
@@ -129,15 +131,16 @@ function TransferEvents() {
   </section>;
 }
 
-function Erc20Transfer() {
+function Erc20Transfer({ erc20Address }: { erc20Address: Address | '' }) {
   const [to, setTo] = useState<Address | ''>(appConfig.defaultRecipient);
   const [amount, setAmount] = useState('1');
   const [hash, setHash] = useState('');
   const { status, error, run } = useStatus();
 
   async function transferToken() {
+    if (!isAddress(erc20Address)) throw new Error('请先在页面上填写有效的 ERC-20 合约地址。');
     const { walletClient, account } = await getWalletAccount();
-    const txHash = await walletClient.writeContract({ account, address: appConfig.erc20Address as Address, abi: erc20Abi, functionName: 'transfer', args: [to as Address, parseUnits(amount, 18)] });
+    const txHash = await walletClient.writeContract({ account, address: erc20Address as Address, abi: erc20Abi, functionName: 'transfer', args: [to as Address, parseUnits(amount, 18)] });
     setHash(txHash);
     await publicClient.waitForTransactionReceipt({ hash: txHash });
   }
@@ -146,20 +149,44 @@ function Erc20Transfer() {
     <h2>5. ERC-20 Token 转账</h2>
     <label>接收地址<input value={to} onChange={(e) => setTo(e.target.value as Address)} placeholder="0x..." /></label>
     <label>Token 数量（18 位小数）<input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="1" /></label>
-    <button disabled={!isAddress(appConfig.erc20Address) || !isAddress(to) || Number(amount) <= 0} onClick={() => run(transferToken, 'Token 转账中...')}>转账 Token</button>
+    <button disabled={!isAddress(erc20Address) || !isAddress(to) || Number(amount) <= 0} onClick={() => run(transferToken, 'Token 转账中...')}>转账 Token</button>
     {hash && <p className="code">交易哈希：{hash}</p>}
     {status && <p className="muted">{status}</p>}
     {error && <p className="error">{error}</p>}
   </section>;
 }
 
+function Erc20AddressConfig({ erc20Address, onChange }: { erc20Address: Address | ''; onChange: (address: Address | '') => void }) {
+  const isEmpty = !erc20Address.trim();
+  const isValid = isAddress(erc20Address);
+
+  return <section className="card stack erc20-config">
+    <h2>ERC-20 合约配置</h2>
+    <p className="muted">填写要测试的 ERC-20 合约地址；balanceOf、Transfer 监听和 Token 转账会共用这个地址。</p>
+    <label>ERC-20 合约地址<input value={erc20Address} onChange={(e) => onChange(e.target.value.trim() as Address | '')} placeholder="0x..." /></label>
+    {isEmpty && <p className="muted">页面初始值会读取环境变量 VITE_ERC20_ADDRESS / VITE_VIEM_ERC20_ADDRESS；也可以直接在这里填写后测试。</p>}
+    {!isEmpty && !isValid && <p className="error">请输入有效的 ERC-20 合约地址。</p>}
+    {isValid && <p className="status">当前使用：{erc20Address}</p>}
+  </section>;
+}
+
 export default function App() {
+  const [erc20Address, setErc20Address] = useState<Address | ''>(() => (localStorage.getItem('erc20Address') as Address | null) || appConfig.erc20Address);
   const envRows = useMemo(() => [
     ['Chain ID', String(appConfig.chainId)],
     ['RPC URL', appConfig.rpcUrl],
     ['Read RPC', appConfig.readRpcUrl],
-    ['ERC-20', appConfig.erc20Address || '未配置'],
-  ], []);
+    ['ERC-20', erc20Address || '未配置'],
+  ], [erc20Address]);
+
+  function updateErc20Address(address: Address | '') {
+    setErc20Address(address);
+    if (address) {
+      localStorage.setItem('erc20Address', address);
+    } else {
+      localStorage.removeItem('erc20Address');
+    }
+  }
 
   return <main className="app">
     <header className="hero">
@@ -167,12 +194,13 @@ export default function App() {
       <p>使用 viem publicClient/walletClient 完成钱包连接、ETH 查询/转账、ERC-20 balanceOf、Transfer 监听和 Token 转账。</p>
     </header>
     <section className="env-grid">{envRows.map(([key, value]) => <div className="env-card" key={key}><strong>{key}</strong><p className="code">{value}</p></div>)}</section>
+    <Erc20AddressConfig erc20Address={erc20Address} onChange={updateErc20Address} />
     <div className="card-grid" style={{ marginTop: 18 }}>
       <WalletAndEthBalance />
       <SendEth />
-      <Erc20Balance />
-      <TransferEvents />
-      <Erc20Transfer />
+      <Erc20Balance erc20Address={erc20Address} />
+      <TransferEvents erc20Address={erc20Address} />
+      <Erc20Transfer erc20Address={erc20Address} />
     </div>
   </main>;
 }
