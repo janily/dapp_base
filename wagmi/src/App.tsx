@@ -121,6 +121,7 @@ export default function App() {
   const envRows = useMemo(() => [
     ['Chain ID', String(appConfig.chainId)],
     ['RPC URL', appConfig.rpcUrl],
+    ['Read RPC', appConfig.readRpcUrl],
     ['ERC-20', appConfig.erc20Address || '未配置'],
   ], []);
 
