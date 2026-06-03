@@ -3,4 +3,14 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  server: {
+    proxy: {
+      '/rpc/sepolia': {
+        target: 'https://ethereum-sepolia-rpc.publicnode.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: () => '/',
+      },
+    },
+  },
 });
