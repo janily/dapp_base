@@ -15,6 +15,15 @@ import {
 } from 'wagmi';
 import { appConfig, erc20Abi } from './config';
 
+async function requestInjectedAccountSelection() {
+  if (!window.ethereum) {
+    throw new Error('未检测到浏览器钱包，请安装 MetaMask 或兼容钱包。');
+  }
+  await window.ethereum.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
+  const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  return Array.isArray(accounts) ? (accounts[0] as Address | undefined) : undefined;
+}
+
 function WalletAndEthBalance() {
   const { address, isConnected } = useAccount();
   const activeChainId = useChainId();
@@ -22,13 +31,33 @@ function WalletAndEthBalance() {
   const { connectors, connect, status } = useConnect();
   const { disconnect } = useDisconnect();
   const [queryAddress, setQueryAddress] = useState(appConfig.defaultQueryAddress || address || '');
+  const [accountSwitchStatus, setAccountSwitchStatus] = useState('');
+  const [accountSwitchError, setAccountSwitchError] = useState('');
   const enabled = isAddress(queryAddress);
+
+  useEffect(() => {
+    if (address && !queryAddress) setQueryAddress(address);
+  }, [address, queryAddress]);
+
+  async function switchAccount() {
+    setAccountSwitchStatus('切换钱包账号中...');
+    setAccountSwitchError('');
+    try {
+      const selectedAccount = await requestInjectedAccountSelection();
+      if (selectedAccount) setQueryAddress((current) => current || selectedAccount);
+      setAccountSwitchStatus(selectedAccount ? '账号已切换' : '已重新请求钱包账号授权');
+    } catch (err) {
+      setAccountSwitchError(err instanceof Error ? err.message : String(err));
+      setAccountSwitchStatus('');
+    }
+  }
   const { data, refetch, isFetching, error } = useBalance({ address: enabled ? (queryAddress as Address) : undefined, query: { enabled } });
 
   return <section className="card stack">
     <h2>1. 连接测试网并查询 ETH 余额</h2>
     <div className="row">
       {isConnected ? <button onClick={() => disconnect()}>断开钱包</button> : connectors.map((connector) => <button key={connector.uid} onClick={() => connect({ connector })}>连接 {connector.name}</button>)}
+      <button className="secondary" onClick={switchAccount}>切换账号</button>
       <button disabled={!isConnected || activeChainId === appConfig.chainId || isSwitching} onClick={() => switchChain({ chainId: appConfig.chainId })}>切换到 {appConfig.chainName}</button>
       <span className="muted">{status}</span>
     </div>
@@ -36,6 +65,8 @@ function WalletAndEthBalance() {
     <label>要查询的地址<input value={queryAddress} onChange={(e) => setQueryAddress(e.target.value)} placeholder="0x..." /></label>
     <button disabled={!enabled || isFetching} onClick={() => refetch()}>查询余额</button>
     {data && <p className="status">余额：{data.formatted} {data.symbol}</p>}
+    {accountSwitchStatus && <p className="muted">{accountSwitchStatus}</p>}
+    {accountSwitchError && <p className="error">{accountSwitchError}</p>}
     {error && <p className="error">{error.message}</p>}
   </section>;
 }
@@ -117,22 +148,46 @@ function Erc20Transfer({ erc20Address }: { erc20Address: Address | '' }) {
   </section>;
 }
 
-function Erc20AddressConfig({ erc20Address, onChange }: { erc20Address: Address | ''; onChange: (address: Address | '') => void }) {
-  const isEmpty = !erc20Address.trim();
-  const isValid = isAddress(erc20Address);
+function Erc20AddressConfig({ erc20Address, open, onChange, onClose }: { erc20Address: Address | ''; open: boolean; onChange: (address: Address | '') => void; onClose: () => void }) {
+  const [draft, setDraft] = useState(erc20Address);
+  const trimmedDraft = draft.trim() as Address | '';
+  const isEmpty = !trimmedDraft;
+  const isValid = isAddress(trimmedDraft);
 
-  return <section className="card stack erc20-config">
-    <h2>ERC-20 合约配置</h2>
-    <p className="muted">填写要测试的 ERC-20 合约地址；balanceOf、Transfer 监听和 Token 转账会共用这个地址。</p>
-    <label>ERC-20 合约地址<input value={erc20Address} onChange={(e) => onChange(e.target.value.trim() as Address | '')} placeholder="0x..." /></label>
-    {isEmpty && <p className="muted">页面初始值会读取环境变量 VITE_ERC20_ADDRESS / VITE_WAGMI_ERC20_ADDRESS；也可以直接在这里填写后测试。</p>}
-    {!isEmpty && !isValid && <p className="error">请输入有效的 ERC-20 合约地址。</p>}
-    {isValid && <p className="status">当前使用：{erc20Address}</p>}
-  </section>;
+  useEffect(() => {
+    if (open) setDraft(erc20Address);
+  }, [erc20Address, open]);
+
+  if (!open) return null;
+
+  function saveAddress() {
+    onChange(trimmedDraft);
+    onClose();
+  }
+
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <section className="modal-card stack" role="dialog" aria-modal="true" aria-labelledby="erc20-config-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header">
+        <h2 id="erc20-config-title">ERC-20 合约配置</h2>
+        <button className="icon-button" aria-label="关闭合约配置弹窗" onClick={onClose}>×</button>
+      </div>
+      <p className="muted">填写要测试的 ERC-20 合约地址；balanceOf、Transfer 监听和 Token 转账会共用这个地址。</p>
+      <label>ERC-20 合约地址<input value={draft} onChange={(e) => setDraft(e.target.value as Address | '')} placeholder="0x..." autoFocus /></label>
+      {isEmpty && <p className="muted">页面初始值会读取环境变量 VITE_ERC20_ADDRESS / VITE_WAGMI_ERC20_ADDRESS；也可以直接在这里填写后测试。</p>}
+      {!isEmpty && !isValid && <p className="error">请输入有效的 ERC-20 合约地址。</p>}
+      {isValid && <p className="status">当前使用：{trimmedDraft}</p>}
+      <div className="modal-actions">
+        <button className="secondary" onClick={() => setDraft('')}>清空</button>
+        <button className="secondary" onClick={onClose}>取消</button>
+        <button disabled={!isEmpty && !isValid} onClick={saveAddress}>保存配置</button>
+      </div>
+    </section>
+  </div>;
 }
 
 export default function App() {
   const [erc20Address, setErc20Address] = useState<Address | ''>(() => (localStorage.getItem('erc20Address') as Address | null) || appConfig.erc20Address);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const envRows = useMemo(() => [
     ['Chain ID', String(appConfig.chainId)],
     ['RPC URL', appConfig.rpcUrl],
@@ -154,8 +209,8 @@ export default function App() {
       <h1>wagmi React DApp 示例</h1>
       <p>使用 wagmi Hooks 完成钱包连接、ETH 查询/转账、ERC-20 balanceOf、Transfer 监听和 Token 转账。</p>
     </header>
-    <section className="env-grid">{envRows.map(([key, value]) => <div className="env-card" key={key}><strong>{key}</strong><p className="code">{value}</p></div>)}</section>
-    <Erc20AddressConfig erc20Address={erc20Address} onChange={updateErc20Address} />
+    <section className="env-grid">{envRows.map(([key, value]) => <div className="env-card" key={key}><strong>{key}</strong><p className="code">{value}</p>{key === 'ERC-20' && <button className="secondary" onClick={() => setIsConfigOpen(true)}>配置合约地址</button>}</div>)}</section>
+    <Erc20AddressConfig erc20Address={erc20Address} open={isConfigOpen} onChange={updateErc20Address} onClose={() => setIsConfigOpen(false)} />
     <div className="card-grid" style={{ marginTop: 18 }}>
       <WalletAndEthBalance />
       <SendEth />
