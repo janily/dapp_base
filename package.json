@@ -1,0 +1,18 @@
+{
+  "name": "dapp-base-showcase",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "ethers",
+    "viem",
+    "wagmi"
+  ],
+  "scripts": {
+    "build": "node scripts/build-all.mjs",
+    "build:apps": "npm run build --workspace dapp-base-ethers && npm run build --workspace dapp-base-viem && npm run build --workspace dapp-base-wagmi",
+    "dev:ethers": "npm run dev --workspace dapp-base-ethers",
+    "dev:viem": "npm run dev --workspace dapp-base-viem",
+    "dev:wagmi": "npm run dev --workspace dapp-base-wagmi"
+  }
+}
