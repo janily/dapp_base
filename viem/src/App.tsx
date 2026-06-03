@@ -19,8 +19,11 @@ function useStatus() {
   return { status, error, run };
 }
 
-async function getWalletAccount() {
+async function getWalletAccount(forceAccountPicker = false) {
   await switchToConfiguredChain();
+  if (forceAccountPicker) {
+    await window.ethereum?.request({ method: 'wallet_requestPermissions', params: [{ eth_accounts: {} }] });
+  }
   const walletClient = createWalletClient({ chain: configuredChain, transport: getWalletTransport() });
   const [account] = await walletClient.requestAddresses();
   return { walletClient, account };
@@ -32,8 +35,8 @@ function WalletAndEthBalance() {
   const [balance, setBalance] = useState('');
   const { status, error, run } = useStatus();
 
-  async function connect() {
-    const { account } = await getWalletAccount();
+  async function connect(forceAccountPicker = false) {
+    const { account } = await getWalletAccount(forceAccountPicker);
     setWallet(account);
     setQueryAddress((current) => current || account);
   }
@@ -45,7 +48,10 @@ function WalletAndEthBalance() {
 
   return <section className="card stack">
     <h2>1. 连接测试网并查询 ETH 余额</h2>
-    <button onClick={() => run(connect, '连接钱包中...')}>连接钱包</button>
+    <div className="row">
+      <button onClick={() => run(() => connect(false), '连接钱包中...')}>连接钱包</button>
+      <button className="secondary" onClick={() => run(() => connect(true), '切换钱包账号中...')}>切换账号</button>
+    </div>
     <p className="code">当前钱包：{wallet || '未连接'}</p>
     <label>要查询的地址<input value={queryAddress} onChange={(e) => setQueryAddress(e.target.value as Address)} placeholder="0x..." /></label>
     <button disabled={!isAddress(queryAddress)} onClick={() => run(queryBalance, '查询余额中...')}>查询余额</button>
@@ -156,22 +162,46 @@ function Erc20Transfer({ erc20Address }: { erc20Address: Address | '' }) {
   </section>;
 }
 
-function Erc20AddressConfig({ erc20Address, onChange }: { erc20Address: Address | ''; onChange: (address: Address | '') => void }) {
-  const isEmpty = !erc20Address.trim();
-  const isValid = isAddress(erc20Address);
+function Erc20AddressConfig({ erc20Address, open, onChange, onClose }: { erc20Address: Address | ''; open: boolean; onChange: (address: Address | '') => void; onClose: () => void }) {
+  const [draft, setDraft] = useState(erc20Address);
+  const trimmedDraft = draft.trim() as Address | '';
+  const isEmpty = !trimmedDraft;
+  const isValid = isAddress(trimmedDraft);
 
-  return <section className="card stack erc20-config">
-    <h2>ERC-20 合约配置</h2>
-    <p className="muted">填写要测试的 ERC-20 合约地址；balanceOf、Transfer 监听和 Token 转账会共用这个地址。</p>
-    <label>ERC-20 合约地址<input value={erc20Address} onChange={(e) => onChange(e.target.value.trim() as Address | '')} placeholder="0x..." /></label>
-    {isEmpty && <p className="muted">页面初始值会读取环境变量 VITE_ERC20_ADDRESS / VITE_VIEM_ERC20_ADDRESS；也可以直接在这里填写后测试。</p>}
-    {!isEmpty && !isValid && <p className="error">请输入有效的 ERC-20 合约地址。</p>}
-    {isValid && <p className="status">当前使用：{erc20Address}</p>}
-  </section>;
+  useEffect(() => {
+    if (open) setDraft(erc20Address);
+  }, [erc20Address, open]);
+
+  if (!open) return null;
+
+  function saveAddress() {
+    onChange(trimmedDraft);
+    onClose();
+  }
+
+  return <div className="modal-backdrop" role="presentation" onClick={onClose}>
+    <section className="modal-card stack" role="dialog" aria-modal="true" aria-labelledby="erc20-config-title" onClick={(event) => event.stopPropagation()}>
+      <div className="modal-header">
+        <h2 id="erc20-config-title">ERC-20 合约配置</h2>
+        <button className="icon-button" aria-label="关闭合约配置弹窗" onClick={onClose}>×</button>
+      </div>
+      <p className="muted">填写要测试的 ERC-20 合约地址；balanceOf、Transfer 监听和 Token 转账会共用这个地址。</p>
+      <label>ERC-20 合约地址<input value={draft} onChange={(e) => setDraft(e.target.value as Address | '')} placeholder="0x..." autoFocus /></label>
+      {isEmpty && <p className="muted">页面初始值会读取环境变量 VITE_ERC20_ADDRESS / VITE_VIEM_ERC20_ADDRESS；也可以直接在这里填写后测试。</p>}
+      {!isEmpty && !isValid && <p className="error">请输入有效的 ERC-20 合约地址。</p>}
+      {isValid && <p className="status">当前使用：{trimmedDraft}</p>}
+      <div className="modal-actions">
+        <button className="secondary" onClick={() => setDraft('')}>清空</button>
+        <button className="secondary" onClick={onClose}>取消</button>
+        <button disabled={!isEmpty && !isValid} onClick={saveAddress}>保存配置</button>
+      </div>
+    </section>
+  </div>;
 }
 
 export default function App() {
   const [erc20Address, setErc20Address] = useState<Address | ''>(() => (localStorage.getItem('erc20Address') as Address | null) || appConfig.erc20Address);
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   const envRows = useMemo(() => [
     ['Chain ID', String(appConfig.chainId)],
     ['RPC URL', appConfig.rpcUrl],
@@ -193,8 +223,8 @@ export default function App() {
       <h1>viem React DApp 示例</h1>
       <p>使用 viem publicClient/walletClient 完成钱包连接、ETH 查询/转账、ERC-20 balanceOf、Transfer 监听和 Token 转账。</p>
     </header>
-    <section className="env-grid">{envRows.map(([key, value]) => <div className="env-card" key={key}><strong>{key}</strong><p className="code">{value}</p></div>)}</section>
-    <Erc20AddressConfig erc20Address={erc20Address} onChange={updateErc20Address} />
+    <section className="env-grid">{envRows.map(([key, value]) => <div className="env-card" key={key}><strong>{key}</strong><p className="code">{value}</p>{key === 'ERC-20' && <button className="secondary" onClick={() => setIsConfigOpen(true)}>配置合约地址</button>}</div>)}</section>
+    <Erc20AddressConfig erc20Address={erc20Address} open={isConfigOpen} onChange={updateErc20Address} onClose={() => setIsConfigOpen(false)} />
     <div className="card-grid" style={{ marginTop: 18 }}>
       <WalletAndEthBalance />
       <SendEth />
