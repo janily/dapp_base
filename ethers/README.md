@@ -22,7 +22,7 @@ cp .env.example .env
 - `VITE_CHAIN_NAME`：网络名称，默认 `Sepolia`。
 - `VITE_RPC_URL`：RPC 地址，默认 `https://ethereum-sepolia-rpc.publicnode.com`。
 - `VITE_READ_RPC_URL`：浏览器读操作 RPC 地址，默认 `/rpc/sepolia`，开发服务器会代理到 PublicNode。
-- `VITE_ERC20_ADDRESS`：要读取、监听和转账的 ERC-20 合约地址。
+- `VITE_ERC20_ADDRESS`：要读取、监听和转账的 ERC-20 合约地址；也可以在页面的“ERC-20 合约配置”区域临时填写，方便切换合约测试。
 - `VITE_DEFAULT_QUERY_ADDRESS`：页面表单默认查询地址。
 - `VITE_DEFAULT_RECIPIENT`：页面表单默认收款地址。
 
