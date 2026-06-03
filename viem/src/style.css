@@ -8,12 +8,16 @@
 body { margin: 0; min-width: 320px; min-height: 100vh; }
 button, input { font: inherit; }
 button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 44px;
   border: 0;
   border-radius: 10px;
   background: #315efb;
   color: white;
   cursor: pointer;
-  padding: 0.7rem 1rem;
+  padding: 0 1rem;
   font-weight: 700;
 }
 button:disabled { cursor: not-allowed; opacity: 0.55; }
@@ -45,7 +49,7 @@ label { display: grid; gap: 0.35rem; font-size: 0.9rem; color: #40506b; }
   box-shadow: 0 8px 24px rgb(23 32 51 / 7%);
 }
 .card h2 { margin: 0 0 12px; font-size: 1.15rem; }
-.stack { display: grid; gap: 12px; }
+.stack { display: grid; align-content: start; gap: 12px; }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .muted { color: #66728a; font-size: 0.9rem; }
 .code {
