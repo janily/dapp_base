@@ -114,23 +114,57 @@ function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
     setEvents([]);
     setError('');
     if (!isAddress(erc20Address)) return;
-    const unwatch = publicClient.watchContractEvent({
-      address: erc20Address as Address,
-      abi: erc20Abi,
-      eventName: 'Transfer',
-      onLogs(logs) {
-        setEvents((current) => [...logs.map((log) => `${log.args.from} -> ${log.args.to}: ${formatEther(log.args.value ?? 0n)}`), ...current].slice(0, 20));
-      },
-      onError(err) {
-        setError(err.message);
-      },
-    });
-    return unwatch;
+
+    let isWatching = true;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    let lastScannedBlock: bigint | undefined;
+
+    async function pollTransferEvents() {
+      try {
+        const latestBlock = await publicClient.getBlockNumber();
+        if (lastScannedBlock === undefined) {
+          lastScannedBlock = latestBlock;
+          setError('');
+          return;
+        }
+
+        if (latestBlock > lastScannedBlock) {
+          const logs = await publicClient.getContractEvents({
+            address: erc20Address as Address,
+            abi: erc20Abi,
+            eventName: 'Transfer',
+            fromBlock: lastScannedBlock + 1n,
+            toBlock: latestBlock,
+          });
+          lastScannedBlock = latestBlock;
+
+          if (logs.length) {
+            setEvents((current) => [
+              ...logs.map((log) => `${log.args.from} -> ${log.args.to}: ${formatUnits(log.args.value ?? 0n, 18)}`),
+              ...current,
+            ].slice(0, 20));
+          }
+        }
+
+        setError('');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        if (isWatching) timeoutId = setTimeout(pollTransferEvents, publicClient.pollingInterval);
+      }
+    }
+
+    void pollTransferEvents();
+
+    return () => {
+      isWatching = false;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [erc20Address]);
 
   return <section className="card stack">
     <h2>4. 监听 ERC-20 Transfer 事件</h2>
-    <p className="muted">使用 viem watchContractEvent 监听配置合约的新 Transfer 事件。</p>
+    <p className="muted">使用 viem getContractEvents 按新区块轮询 Transfer 事件，避免部分 RPC 节点的 filter 失效导致 eth_getFilterChanges 报错。</p>
     <ol className="event-list">{events.map((event, index) => <li key={`${event}-${index}`}>{event}</li>)}</ol>
     {!events.length && <p className="muted">暂无事件</p>}
     {error && <p className="error">{error}</p>}
