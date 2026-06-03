@@ -142,17 +142,18 @@ function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
   useEffect(() => {
     if (!canWatch || !publicClient) return;
 
+    const client = publicClient;
     let cancelled = false;
     let timeout: ReturnType<typeof setTimeout> | undefined;
     let nextFromBlock: bigint | undefined;
 
     async function pollTransferLogs() {
       try {
-        const latestBlock = await publicClient.getBlockNumber();
+        const latestBlock = await client.getBlockNumber();
         const fromBlock = nextFromBlock ?? (latestBlock > initialTransferEventLookbackBlocks ? latestBlock - initialTransferEventLookbackBlocks : 0n);
 
         if (fromBlock <= latestBlock) {
-          const logs = await publicClient.getLogs({
+          const logs = await client.getLogs({
             address: erc20Address as Address,
             event: transferEvent,
             fromBlock,
