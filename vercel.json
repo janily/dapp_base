@@ -1,0 +1,22 @@
+{
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    {
+      "source": "/rpc/sepolia",
+      "destination": "https://ethereum-sepolia-rpc.publicnode.com/"
+    },
+    {
+      "source": "/ethers",
+      "destination": "/ethers/index.html"
+    },
+    {
+      "source": "/viem",
+      "destination": "/viem/index.html"
+    },
+    {
+      "source": "/wagmi",
+      "destination": "/wagmi/index.html"
+    }
+  ]
+}

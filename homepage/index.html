@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DApp Base 示例入口</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">DApp Base</p>
+        <h1>选择一个库，进入独立 DApp 示例</h1>
+        <p class="lead">
+          这个仓库包含 ethers、viem、wagmi 三个独立的 React/Vite 项目。Vercel 构建时会分别编译它们，
+          并挂载到对应子路径，主页只负责提供统一入口。
+        </p>
+      </section>
+
+      <section class="grid" aria-label="DApp 示例入口">
+        <a class="card ethers" href="/ethers/">
+          <span class="badge">ethers v6</span>
+          <h2>ethers 示例</h2>
+          <p>使用 BrowserProvider、JsonRpcProvider 和 Contract 完成钱包连接、ETH/Token 读写与事件监听。</p>
+          <strong>进入 ethers 页面 →</strong>
+        </a>
+
+        <a class="card viem" href="/viem/">
+          <span class="badge">viem</span>
+          <h2>viem 示例</h2>
+          <p>使用 publicClient / walletClient 体验低层、类型友好的链上读写、交易发送与日志监听。</p>
+          <strong>进入 viem 页面 →</strong>
+        </a>
+
+        <a class="card wagmi" href="/wagmi/">
+          <span class="badge">wagmi Hooks</span>
+          <h2>wagmi 示例</h2>
+          <p>使用 React Hooks 管理连接状态、余额查询、合约读取、交易发送和交易确认。</p>
+          <strong>进入 wagmi 页面 →</strong>
+        </a>
+      </section>
+
+      <section class="note">
+        <h2>Vercel 部署方式</h2>
+        <p>
+          当前配置会把根目录构建输出到 <code>dist/</code>：<code>/</code> 是入口页，
+          <code>/ethers/</code>、<code>/viem/</code>、<code>/wagmi/</code> 分别是三个独立应用。
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

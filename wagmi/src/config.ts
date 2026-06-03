@@ -1,18 +1,22 @@
-import { http, type Address } from 'viem';
-import { defineChain } from 'viem/chains';
+import { defineChain, http, type Address } from 'viem';
 import { createConfig } from 'wagmi';
 import { injected } from 'wagmi/connectors';
 
 const defaultSepoliaRpcUrl = 'https://ethereum-sepolia-rpc.publicnode.com';
+const appEnvPrefix = 'VITE_WAGMI_';
+
+function getEnvValue(name: string, fallback = '') {
+  return import.meta.env[`${appEnvPrefix}${name}`] || import.meta.env[`VITE_${name}`] || fallback;
+}
 
 export const appConfig = {
-  chainId: Number(import.meta.env.VITE_CHAIN_ID ?? 11155111),
-  chainName: import.meta.env.VITE_CHAIN_NAME ?? 'Sepolia',
-  rpcUrl: import.meta.env.VITE_RPC_URL ?? defaultSepoliaRpcUrl,
-  readRpcUrl: import.meta.env.VITE_READ_RPC_URL ?? '/rpc/sepolia',
-  erc20Address: (import.meta.env.VITE_ERC20_ADDRESS ?? '') as Address | '',
-  defaultQueryAddress: (import.meta.env.VITE_DEFAULT_QUERY_ADDRESS ?? '') as Address | '',
-  defaultRecipient: (import.meta.env.VITE_DEFAULT_RECIPIENT ?? '') as Address | '',
+  chainId: Number(getEnvValue('CHAIN_ID', '11155111')),
+  chainName: getEnvValue('CHAIN_NAME', 'Sepolia'),
+  rpcUrl: getEnvValue('RPC_URL', defaultSepoliaRpcUrl),
+  readRpcUrl: getEnvValue('READ_RPC_URL', '/rpc/sepolia'),
+  erc20Address: getEnvValue('ERC20_ADDRESS') as Address | '',
+  defaultQueryAddress: getEnvValue('DEFAULT_QUERY_ADDRESS') as Address | '',
+  defaultRecipient: getEnvValue('DEFAULT_RECIPIENT') as Address | '',
 };
 
 export const configuredChain = defineChain({
