@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { formatUnits, isAddress, parseAbiItem, parseEther, parseUnits, type Address } from 'viem';
+import { formatUnits, isAddress, parseEther, parseUnits, type Address } from 'viem';
 import {
   useAccount,
   useBalance,
@@ -9,16 +9,13 @@ import {
   useReadContract,
   useSendTransaction,
   useWaitForTransactionReceipt,
-  usePublicClient,
   useWriteContract,
   useSwitchChain,
+  useWatchContractEvent,
 } from 'wagmi';
 import { appConfig, erc20Abi } from './config';
 
-// Poll Transfer logs with eth_getLogs instead of eth_newFilter/eth_getFilterChanges because public RPC filters can expire or be lost between requests.
-const transferEvent = parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 value)');
 const transferEventPollingInterval = 4_000;
-const initialTransferEventLookbackBlocks = 5n;
 
 async function requestInjectedAccountSelection() {
   if (!window.ethereum) {
@@ -118,18 +115,22 @@ function Erc20Balance({ erc20Address }: { erc20Address: Address | '' }) {
 function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
   const [events, setEvents] = useState<string[]>([]);
   const [error, setError] = useState('');
-  const [lastCheckedBlock, setLastCheckedBlock] = useState<bigint>();
-  const publicClient = usePublicClient({ chainId: appConfig.chainId });
-  const canWatch = isAddress(erc20Address) && Boolean(publicClient);
+  const [latestEventBlock, setLatestEventBlock] = useState<bigint>();
+  const watchAddress = isAddress(erc20Address) ? erc20Address : undefined;
+  const canWatch = Boolean(watchAddress);
 
   useEffect(() => {
     setEvents([]);
     setError('');
-    setLastCheckedBlock(undefined);
+    setLatestEventBlock(undefined);
   }, [erc20Address]);
 
   const appendLogs = useCallback((logs: readonly { blockNumber?: bigint | null; args: { from?: Address; to?: Address; value?: bigint } }[]) => {
     if (!logs.length) return;
+
+    const blockNumbers = logs.flatMap((log) => (typeof log.blockNumber === 'bigint' ? [log.blockNumber] : []));
+    if (blockNumbers.length) setLatestEventBlock(blockNumbers.reduce((latest, blockNumber) => (blockNumber > latest ? blockNumber : latest)));
+
     setEvents((current) => [
       ...logs.map((log) => {
         const block = log.blockNumber ? `#${log.blockNumber.toString()} ` : '';
@@ -139,55 +140,28 @@ function TransferEvents({ erc20Address }: { erc20Address: Address | '' }) {
     ].slice(0, 20));
   }, []);
 
-  useEffect(() => {
-    if (!canWatch || !publicClient) return;
-
-    const client = publicClient;
-    let cancelled = false;
-    let timeout: ReturnType<typeof setTimeout> | undefined;
-    let nextFromBlock: bigint | undefined;
-
-    async function pollTransferLogs() {
-      try {
-        const latestBlock = await client.getBlockNumber();
-        const fromBlock = nextFromBlock ?? (latestBlock > initialTransferEventLookbackBlocks ? latestBlock - initialTransferEventLookbackBlocks : 0n);
-
-        if (fromBlock <= latestBlock) {
-          const logs = await client.getLogs({
-            address: erc20Address as Address,
-            event: transferEvent,
-            fromBlock,
-            toBlock: latestBlock,
-          });
-
-          if (!cancelled) {
-            appendLogs(logs);
-            setError('');
-            setLastCheckedBlock(latestBlock);
-          }
-        }
-
-        nextFromBlock = latestBlock + 1n;
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      } finally {
-        if (!cancelled) timeout = setTimeout(pollTransferLogs, transferEventPollingInterval);
-      }
-    }
-
-    pollTransferLogs();
-
-    return () => {
-      cancelled = true;
-      if (timeout) clearTimeout(timeout);
-    };
-  }, [appendLogs, canWatch, erc20Address, publicClient]);
+  useWatchContractEvent({
+    address: watchAddress,
+    abi: erc20Abi,
+    chainId: appConfig.chainId,
+    eventName: 'Transfer',
+    poll: true,
+    pollingInterval: transferEventPollingInterval,
+    strict: true,
+    onLogs(logs) {
+      appendLogs(logs);
+      setError('');
+    },
+    onError(err) {
+      setError(err.message);
+    },
+  });
 
   return <section className="card stack">
     <h2>4. 监听 ERC-20 Transfer 事件</h2>
-    <p className="muted">页面打开后会持续监听配置合约的新 Transfer 事件。</p>
+    <p className="muted">页面打开后会使用 wagmi 的 useWatchContractEvent 持续监听配置合约的新 Transfer 事件。</p>
     {canWatch && <p className="status">监听中：{erc20Address}</p>}
-    {lastCheckedBlock && <p className="muted">已检查到区块：{lastCheckedBlock.toString()}（使用 eth_getLogs 轮询，避免 RPC filter 丢失）</p>}
+    {latestEventBlock && <p className="muted">最近事件区块：{latestEventBlock.toString()}（HTTP RPC 下使用轮询监听）</p>}
     <ol className="event-list">{events.map((event, index) => <li key={`${event}-${index}`}>{event}</li>)}</ol>
     {!events.length && <p className="muted">暂无事件</p>}
     {error && <p className="error">监听失败：{error}</p>}
